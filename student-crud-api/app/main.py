@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query, Response, status
@@ -8,20 +9,21 @@ from app.crud import create_student, delete_student, get_student_by_id, get_stud
 from app.database import ensure_database_directory, init_db
 from app.models import StudentCreate, StudentPatch, StudentResponse, StudentUpdate
 
-ensure_database_directory()
-init_db()
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Initialize database tables when the app starts."""
+    ensure_database_directory()
+    init_db()
+    yield
+
 
 app = FastAPI(
     title="Students Database CRUD Application",
     description="Beginner-friendly FastAPI API for managing student records with SQLite persistence.",
     version="1.0.0",
+    lifespan=lifespan,
 )
-
-
-@app.on_event("startup")
-def startup_event():
-    """Initialize database tables when the app starts."""
-    init_db()
 
 
 @app.post("/students", response_model=StudentResponse, status_code=status.HTTP_201_CREATED)

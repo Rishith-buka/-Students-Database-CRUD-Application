@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import date
 from typing import Any, Optional
 
 from app.database import get_connection
 from app.models import StudentCreate, StudentPatch, StudentUpdate
+
+
+def _normalize_optional_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    cleaned = value.strip()
+    return cleaned or None
 
 
 def row_to_student(row: sqlite3.Row) -> dict[str, Any]:
@@ -45,8 +51,8 @@ def create_student(student_data: StudentCreate) -> dict[str, Any]:
                     student_data.date_of_birth.isoformat(),
                     student_data.email,
                     student_data.phone,
-                    student_data.course.strip() if student_data.course else None,
-                    student_data.address.strip() if student_data.address else None,
+                    _normalize_optional_text(student_data.course),
+                    _normalize_optional_text(student_data.address),
                     student_data.enrollment_date.isoformat() if student_data.enrollment_date else None,
                 ),
             )
@@ -127,8 +133,8 @@ def update_student(student_id: int, student_data: StudentUpdate) -> dict[str, An
                     student_data.date_of_birth.isoformat(),
                     student_data.email,
                     student_data.phone,
-                    student_data.course.strip() if student_data.course else None,
-                    student_data.address.strip() if student_data.address else None,
+                    _normalize_optional_text(student_data.course),
+                    _normalize_optional_text(student_data.address),
                     student_data.enrollment_date.isoformat() if student_data.enrollment_date else None,
                     student_id,
                 ),
@@ -160,23 +166,19 @@ def patch_student(student_id: int, student_data: StudentPatch) -> dict[str, Any]
         if student_data.phone is not None:
             updates["phone"] = student_data.phone
         if student_data.course is not None:
-            updates["course"] = student_data.course.strip()
+            updates["course"] = _normalize_optional_text(student_data.course)
         if student_data.address is not None:
-            updates["address"] = student_data.address.strip()
+            updates["address"] = _normalize_optional_text(student_data.address)
         if student_data.enrollment_date is not None:
             updates["enrollment_date"] = student_data.enrollment_date.isoformat()
 
         if not updates:
             return row_to_student(existing)
 
-        if "email" not in updates and "phone" not in updates:
-            if existing["email"] is None and existing["phone"] is None:
-                raise ValueError("At least one contact detail (email or phone) is required.")
-
-        if "email" in updates and updates["email"] is None and existing["phone"] is None:
-            raise ValueError("Either email or phone number is required.")
-        if "phone" in updates and updates["phone"] is None and existing["email"] is None:
-            raise ValueError("Either email or phone number is required.")
+        final_email = updates.get("email", existing["email"])
+        final_phone = updates.get("phone", existing["phone"])
+        if final_email is None and final_phone is None:
+            raise ValueError("At least one contact detail (email or phone) is required.")
 
         set_clauses = ", ".join(f"{field} = ?" for field in updates)
         values = list(updates.values())

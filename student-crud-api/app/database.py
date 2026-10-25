@@ -4,18 +4,25 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_DB_PATH = BASE_DIR / "students.db"
-DATABASE_FILE = os.getenv("DATABASE_FILE", str(DEFAULT_DB_PATH))
+
+
+def get_database_path() -> str:
+    """Resolve the configured SQLite database path at runtime."""
+    return os.getenv("DATABASE_FILE", str(DEFAULT_DB_PATH))
 
 
 def get_connection():
     """Create a SQLite database connection with row factory enabled."""
-    connection = sqlite3.connect(DATABASE_FILE)
+    database_file = get_database_path()
+    ensure_database_directory(database_file)
+    connection = sqlite3.connect(database_file)
     connection.row_factory = sqlite3.Row
     return connection
 
 
 def init_db():
     """Create the students table if it does not already exist."""
+    ensure_database_directory()
     with get_connection() as connection:
         connection.execute(
             """
@@ -50,7 +57,7 @@ def init_db():
         connection.commit()
 
 
-def ensure_database_directory():
+def ensure_database_directory(database_file: str | Path | None = None):
     """Ensure the parent directory for the database file exists."""
-    directory = Path(DATABASE_FILE).resolve().parent
-    directory.mkdir(parents=True, exist_ok=True)
+    target = Path(database_file or get_database_path()).resolve()
+    target.parent.mkdir(parents=True, exist_ok=True)
